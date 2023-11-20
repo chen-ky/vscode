@@ -1,0 +1,40 @@
+name: Merge VSCode Upstream
+
+on:
+  schedule:
+    - cron: "58 13 * * 5" # Run task every Friday on 1358 UTC
+  workflow_dispatch:
+
+env:
+  UPSTREAM_REPO: "https://github.com/microsoft/vscode.git"
+  MERGE_UPSTREAM_BRANCH: "main"
+
+concurrency:
+  group: upstream_merge
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  merge-upstream:
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for all branches and tags
+
+      - name: Fetch upstream repository
+        run: |
+          git remote add upstream "$UPSTREAM_REPO"
+          git fetch upstream
+      - name: Merge with upstream repository
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git merge upstream/"$MERGE_UPSTREAM_BRANCH"
+      - name: Push changes
+        run: |
+          git push origin --all
+          git push origin --tags
