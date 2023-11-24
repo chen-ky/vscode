@@ -19,6 +19,8 @@ import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHisto
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { Codicon } from 'vs/base/common/codicons';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { basename } from 'vs/base/common/resources';
 
 function getSCMInputBoxActionButtonIcon(actionButton: SCMInputActionButtonDto): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (!actionButton.icon) {
@@ -159,7 +161,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
-	async resolveHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined> {
+	async resolveHistoryItemGroupDetails(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined> {
 		// History item group base
 		const historyItemGroupBase = await this.resolveHistoryItemGroupBase(historyItemGroup.id);
 
@@ -173,7 +175,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 			incoming = {
 				id: historyItemGroupBase.id,
 				label: historyItemGroupBase.label,
-				icon: Codicon.cloudDownload,
+				icon: Codicon.arrowCircleDown,
 				ancestor: ancestor?.id,
 				count: ancestor?.behind ?? 0,
 			};
@@ -183,7 +185,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		const outgoing: ISCMHistoryItemGroupEntry = {
 			id: historyItemGroup.id,
 			label: historyItemGroup.label,
-			icon: Codicon.cloudUpload,
+			icon: Codicon.arrowCircleUp,
 			ancestor: ancestor?.id,
 			count: ancestor?.ahead ?? 0,
 		};
@@ -248,7 +250,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get label(): string { return this._label; }
 	get rootUri(): URI | undefined { return this._rootUri; }
 	get inputBoxDocumentUri(): URI { return this._inputBoxDocumentUri; }
-	get contextValue(): string { return this._contextValue; }
+	get contextValue(): string { return this._providerId; }
 
 	get commitTemplate(): string { return this.features.commitTemplate || ''; }
 	get historyProvider(): ISCMHistoryProvider | undefined { return this._historyProvider; }
@@ -256,6 +258,9 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get actionButton(): ISCMActionButtonDescriptor | undefined { return this.features.actionButton ?? undefined; }
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
 	get count(): number | undefined { return this.features.count; }
+
+	private readonly _name: string | undefined;
+	get name(): string { return this._name ?? this._label; }
 
 	private readonly _onDidChangeCommitTemplate = new Emitter<string>();
 	readonly onDidChangeCommitTemplate: Event<string> = this._onDidChangeCommitTemplate.event;
@@ -277,13 +282,23 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	constructor(
 		private readonly proxy: ExtHostSCMShape,
 		private readonly _handle: number,
-		private readonly _contextValue: string,
+		private readonly _providerId: string,
 		private readonly _label: string,
 		private readonly _rootUri: URI | undefined,
 		private readonly _inputBoxDocumentUri: URI,
 		private readonly _quickDiffService: IQuickDiffService,
-		private readonly _uriIdentService: IUriIdentityService
-	) { }
+		private readonly _uriIdentService: IUriIdentityService,
+		private readonly _workspaceContextService: IWorkspaceContextService
+	) {
+		if (_rootUri) {
+			const folder = this._workspaceContextService.getWorkspaceFolder(_rootUri);
+			if (folder?.uri.toString() === _rootUri.toString()) {
+				this._name = folder.name;
+			} else if (_rootUri.path !== '/') {
+				this._name = basename(_rootUri);
+			}
+		}
+	}
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
 		this.features = { ...this.features, ...features };
@@ -463,8 +478,8 @@ class MainThreadSCMInputBoxValueProvider implements ISCMInputValueProvider {
 		readonly label: string,
 		readonly icon?: URI | ThemeIcon | { light: URI; dark: URI }) { }
 
-	provideValue(repositoryId: string, context: ISCMInputValueProviderContext[]): Promise<string | undefined> {
-		return this.proxy.$provideInputBoxValue(this.handle, repositoryId, context);
+	provideValue(rootUri: URI, context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
+		return this.proxy.$provideInputBoxValue(this.handle, rootUri, context, token);
 	}
 
 }
@@ -483,7 +498,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
-		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
+		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 	}
@@ -500,7 +516,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, URI.revive(inputBoxDocumentUri), this.quickDiffService, this._uriIdentService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, URI.revive(inputBoxDocumentUri), this.quickDiffService, this._uriIdentService, this.workspaceContextService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 
@@ -545,9 +561,9 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositories.delete(handle);
 	}
 
-	$registerSourceControlInputBoxValueProvider(handle: number, label: string, icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): void {
+	$registerSourceControlInputBoxValueProvider(handle: number, sourceControlId: string, label: string, icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): void {
 		const provider = new MainThreadSCMInputBoxValueProvider(this._proxy, handle, label, getIconFromIconDto(icon));
-		const disposable = this.scmService.registerSCMInputValueProvider(provider);
+		const disposable = this.scmService.registerSCMInputValueProvider(sourceControlId, provider);
 
 		this._inputBoxValueProviders.set(handle, disposable);
 	}
