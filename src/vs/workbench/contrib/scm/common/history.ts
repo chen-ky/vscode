@@ -10,6 +10,11 @@ import { IMenu } from 'vs/platform/actions/common/actions';
 import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProviderMenus {
+	readonly incomingHistoryItemGroupMenu: IMenu;
+	readonly incomingHistoryItemGroupContextMenu: IMenu;
+	readonly outgoingHistoryItemGroupMenu: IMenu;
+	readonly outgoingHistoryItemGroupContextMenu: IMenu;
+
 	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu;
 }
 
@@ -23,7 +28,7 @@ export interface ISCMHistoryProvider {
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined>;
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
-	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined>;
+	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined>;
 }
 
 export interface ISCMHistoryProviderCacheEntry {

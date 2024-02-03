@@ -5,9 +5,23 @@
 
 declare module 'vscode' {
 
+	/**
+	 * One request/response pair in chat history.
+	 */
 	export interface ChatAgentHistoryEntry {
+		/**
+		 * The request that was sent to the chat agent.
+		 */
 		request: ChatAgentRequest;
+
+		/**
+		 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
+		 */
 		response: ChatAgentContentProgress[];
+
+		/**
+		 * The result that was received from the chat agent.
+		 */
 		result: ChatAgentResult2;
 	}
 
@@ -167,7 +181,7 @@ declare module 'vscode' {
 	/**
 	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the chat.
 	 */
-	export interface FollowupProvider<TResult extends ChatAgentResult2> {
+	export interface ChatAgentFollowupProvider<TResult extends ChatAgentResult2> {
 		/**
 		 *
 		 * @param result The same instance of the result object that was returned by the chat agent, and it can be extended with arbitrary properties if needed.
@@ -215,7 +229,7 @@ declare module 'vscode' {
 		/**
 		 * This provider will be called once after each request to retrieve suggested followup questions.
 		 */
-		followupProvider?: FollowupProvider<TResult>;
+		followupProvider?: ChatAgentFollowupProvider<TResult>;
 
 		/**
 		 * When the user clicks this agent in `/help`, this text will be submitted to this subCommand
@@ -253,13 +267,6 @@ declare module 'vscode' {
 		agentId: string;
 
 		/**
-		 * The {@link ChatAgentSubCommand subCommand} that was selected for this request. It is guaranteed that the passed subCommand
-		 * is an instance that was previously returned from the {@link ChatAgentSubCommandProvider.provideSubCommands subCommand provider}.
-		 * @deprecated this will be replaced by `subCommand`
-		 */
-		slashCommand?: ChatAgentSubCommand;
-
-		/**
 		 * The name of the {@link ChatAgentSubCommand subCommand} that was selected for this request.
 		 */
 		subCommand?: string;
@@ -270,8 +277,7 @@ declare module 'vscode' {
 	export type ChatAgentContentProgress =
 		| ChatAgentContent
 		| ChatAgentFileTree
-		| ChatAgentInlineContentReference
-		| ChatAgentTask;
+		| ChatAgentInlineContentReference;
 
 	export type ChatAgentMetadataProgress =
 		| ChatAgentUsedContext
@@ -320,24 +326,6 @@ declare module 'vscode' {
 		 * The content as a string of markdown source.
 		 */
 		content: string;
-	}
-
-	/**
-	 * Represents a piece of the chat response's content that is resolved asynchronously. It is rendered immediately with a placeholder,
-	 * which is replaced once the full content is available.
-	 */
-	export interface ChatAgentTask {
-		/**
-		 * The markdown string to be rendered immediately.
-		 */
-		placeholder: string;
-
-		/**
-		 * A Thenable resolving to the real content. The placeholder will be replaced with this content once it's available.
-		 */
-		// TODO@API Should this be an async iterable or progress instance instead
-		// TODO@API Should this include more inline-renderable items like `ChatAgentInlineContentReference`
-		resolvedContent: Thenable<ChatAgentContent | ChatAgentFileTree>;
 	}
 
 	/**
