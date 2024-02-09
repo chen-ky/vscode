@@ -18,7 +18,7 @@ declare module 'vscode' {
 		/**
 		 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
 		 */
-		response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart)[];
+		response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart)[];
 
 		/**
 		 * The result that was received from the chat agent.
@@ -33,6 +33,8 @@ declare module 'vscode' {
 	// 	 */
 	// 	response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart)[];
 
+	// agentId: string
+
 	// 	/**
 	// 	 * The result that was received from the chat agent.
 	// 	 */
@@ -44,6 +46,8 @@ declare module 'vscode' {
 		 * All of the chat messages so far in the current chat session.
 		 */
 		history: ChatAgentHistoryEntry[];
+
+		// location:
 
 		// TODO@API have "turns"
 		// history2: (ChatAgentRequest | ChatAgentResponse)[];
@@ -153,6 +157,7 @@ declare module 'vscode' {
 		readonly followupPlaceholder?: string;
 	}
 
+	// TODO@API NAME: w/o Sub just `ChatAgentCommand` etc pp
 	export interface ChatAgentSubCommandProvider {
 
 		/**
@@ -168,19 +173,10 @@ declare module 'vscode' {
 		provideSubCommands(token: CancellationToken): ProviderResult<ChatAgentSubCommand[]>;
 	}
 
-	// TODO@API This should become a progress type, and use vscode.Command
-	// TODO@API what's the when-property for? how about not returning it in the first place?
-	export interface ChatAgentCommandFollowup {
-		commandId: string;
-		args?: any[];
-		title: string; // supports codicon strings
-		when?: string;
-	}
-
 	/**
 	 * A followup question suggested by the model.
 	 */
-	export interface ChatAgentReplyFollowup {
+	export interface ChatAgentFollowup {
 		/**
 		 * The message to send to the chat.
 		 */
@@ -196,8 +192,6 @@ declare module 'vscode' {
 		 */
 		title?: string;
 	}
-
-	export type ChatAgentFollowup = ChatAgentCommandFollowup | ChatAgentReplyFollowup;
 
 	/**
 	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the chat.
@@ -253,8 +247,10 @@ declare module 'vscode' {
 		followupProvider?: ChatAgentFollowupProvider<TResult>;
 
 
-		// TODO@
+		// TODO@API
 		// notify(request: ChatResponsePart, reference: string): boolean;
+		// BETTER
+		// requestResponseStream(callback: (stream: ChatAgentResponseStream) => void, why?: string): void;
 
 		// TODO@API
 		// clear NEVER happens
@@ -337,6 +333,15 @@ declare module 'vscode' {
 		 * @returns This stream.
 		 */
 		anchor(value: Uri | Location, title?: string): ChatAgentResponseStream;
+
+		/**
+		 * Push a command button part to this stream. Short-hand for
+		 * `push(new ChatResponseCommandButtonPart(value, title))`.
+		 *
+		 * @param command A Command that will be executed when the button is clicked.
+		 * @returns This stream.
+		 */
+		button(command: Command): ChatAgentResponseStream;
 
 		/**
 		 * Push a filetree part to this stream. Short-hand for
@@ -430,8 +435,13 @@ declare module 'vscode' {
 		constructor(value: Uri | Location);
 	}
 
+	export class ChatResponseCommandButtonPart {
+		value: Command;
+		constructor(value: Command);
+	}
+
 	export type ChatResponsePart = ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
-		| ChatResponseProgressPart | ChatResponseReferencePart;
+		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
 
 	/**
 	 * @deprecated use ChatAgentResponseStream instead
@@ -439,7 +449,8 @@ declare module 'vscode' {
 	export type ChatAgentContentProgress =
 		| ChatAgentContent
 		| ChatAgentFileTree
-		| ChatAgentInlineContentReference;
+		| ChatAgentInlineContentReference
+		| ChatAgentCommandButton;
 
 	/**
 	 * @deprecated use ChatAgentResponseStream instead
@@ -484,6 +495,13 @@ declare module 'vscode' {
 		 * An alternate title for the resource.
 		 */
 		title?: string;
+	}
+
+	/**
+	 * Displays a {@link Command command} as a button in the chat response.
+	 */
+	export interface ChatAgentCommandButton {
+		command: Command;
 	}
 
 	/**
@@ -548,6 +566,8 @@ declare module 'vscode' {
 		documents: ChatAgentDocumentContext[];
 	}
 
+	// TODO@API Remove a different type of `request` so that they can
+	// evolve at their own pace
 	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
@@ -573,6 +593,7 @@ declare module 'vscode' {
 	/**
 	 * The detail level of this chat variable value.
 	 */
+	// TODO@API maybe for round2
 	export enum ChatVariableLevel {
 		Short = 1,
 		Medium = 2,
