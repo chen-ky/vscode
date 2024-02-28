@@ -95,6 +95,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Eagerly create the overlay
 		xtermCtor.then(ctor => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			this._stickyScrollOverlay = this._register(new ctor({
 				rows: 1,
 				cols: this._xterm.raw.cols,
@@ -242,6 +245,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
+		// Hide sticky scroll if the prompt has been trimmed from the buffer
+		if (command.promptStartMarker?.line === -1) {
+			this._setVisible(false);
+			return;
+		}
+
 		// Determine sticky scroll line count
 		const buffer = xterm.buffer.active;
 		const promptRowCount = command.getPromptRowCount();
@@ -372,6 +381,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				this._instance.focus();
 			}
 		}));
+
+		// Forward mouse events to the terminal
+		this._register(addStandardDisposableListener(hoverOverlay, 'wheel', e => this._xterm?.raw.element?.dispatchEvent(new WheelEvent(e.type, e))));
 
 		// Context menu - stop propagation on mousedown because rightClickBehavior listens on
 		// mousedown, not contextmenu
