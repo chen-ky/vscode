@@ -32,7 +32,7 @@ jobs:
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git pull upstream --all
+          git pull --all upstream/"$MERGE_UPSTREAM_BRANCH"
       - name: Push changes
         run: |
           git push origin --all
