@@ -25,15 +25,14 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all history for all branches and tags
 
-      - name: Fetch upstream repository
+      - name: Add upstream repository
         run: |
           git remote add upstream "$UPSTREAM_REPO"
-          git fetch upstream
       - name: Merge with upstream repository
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git merge upstream/"$MERGE_UPSTREAM_BRANCH"
+          git pull upstream --all
       - name: Push changes
         run: |
           git push origin --all
